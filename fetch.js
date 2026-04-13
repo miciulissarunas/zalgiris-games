@@ -8,7 +8,11 @@ async function getNextGame() {
   const now = new Date();
 
   const games = data.events
-    .filter(g => g.competitions?.[0]?.competitors?.some(c => c.team?.displayName.includes("Zalgiris")))
+    .filter(g =>
+      g.competitions?.[0]?.competitors?.some(c =>
+        c.team?.displayName.toLowerCase().includes("zalgiris")
+      )
+    )
     .map(game => {
       const comp = game.competitions[0];
       const teams = comp.competitors;
@@ -32,7 +36,7 @@ async function getNextGame() {
     date: nextGame.date.toISOString()
   }, null, 2));
 
-  console.log("OK");
+  console.log("game.json updated");
 }
 
 getNextGame().catch(e => {
