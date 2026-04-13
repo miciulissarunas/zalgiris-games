@@ -12,14 +12,9 @@ async function getNextGame() {
   }
 
   const html = await res.text();
-
-  // Suspaudžiam tekstą, kad regex būtų lengviau rasti blokus
   const text = html.replace(/\s+/g, " ").trim();
 
-  // Ieškom pirmo tvarkaraščio įrašo po "balandis, 2026"
-  // Pvz:
-  // Lietuvos Krepšinio Lyga AN, 04-14, 18:30 Telia Play Jonava - Žalgiris - Informacija
-  const regex = /(Lietuvos Krepšinio Lyga|Eurolyga)\s+(AN|PN|SK|TR|KT|ŠT),\s*(\d{2}-\d{2}),\s*(\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįų&.' -]+?)\s*-\s*([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįų&.' -]+?)\s*-\s*(Informacija|Bilietai)/;
+  const regex = /(Lietuvos Krepšinio Lyga|Eurolyga)\s+(AN|PN|SK|TR|KT|ŠT),\s*(\d{2}-\d{2}),\s*(\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*(Informacija|Bilietai)/;
 
   const match = text.match(regex);
 
