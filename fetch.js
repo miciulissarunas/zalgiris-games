@@ -1,45 +1,47 @@
 import fs from "fs";
 
 async function getNextGame() {
-  const res = await fetch("https://site.web.api.espn.com/apis/v2/sports/basketball/leagues/euroleague/events");
+  const res = await fetch("https://zalgiris.lt/rungtynes", {
+    headers: {
+      "user-agent": "Mozilla/5.0"
+    }
+  });
 
-  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`HTTP error ${res.status}`);
+  }
 
-  const now = new Date();
+  const html = await res.text();
 
-  const games = data.events
-    .filter(g =>
-      g.competitions?.[0]?.competitors?.some(c =>
-        c.team?.displayName.toLowerCase().includes("zalgiris")
-      )
-    )
-    .map(game => {
-      const comp = game.competitions[0];
-      const teams = comp.competitors;
+  // Suspaudžiam tekstą, kad regex būtų lengviau rasti blokus
+  const text = html.replace(/\s+/g, " ").trim();
 
-      return {
-        date: new Date(game.date),
-        home: teams[0].team.displayName,
-        away: teams[1].team.displayName
-      };
-    })
-    .filter(g => g.date > now)
-    .sort((a, b) => a.date - b.date);
+  // Ieškom pirmo tvarkaraščio įrašo po "balandis, 2026"
+  // Pvz:
+  // Lietuvos Krepšinio Lyga AN, 04-14, 18:30 Telia Play Jonava - Žalgiris - Informacija
+  const regex = /(Lietuvos Krepšinio Lyga|Eurolyga)\s+(AN|PN|SK|TR|KT|ŠT),\s*(\d{2}-\d{2}),\s*(\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįų&.' -]+?)\s*-\s*([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįų&.' -]+?)\s*-\s*(Informacija|Bilietai)/;
 
-  if (!games.length) throw new Error("No upcoming games");
+  const match = text.match(regex);
 
-  const nextGame = games[0];
+  if (!match) {
+    fs.writeFileSync("debug.txt", text);
+    throw new Error("Nepavyko ištraukti artimiausių rungtynių iš zalgiris.lt");
+  }
 
-  fs.writeFileSync("game.json", JSON.stringify({
-    home: nextGame.home,
-    away: nextGame.away,
-    date: nextGame.date.toISOString()
-  }, null, 2));
+  const output = {
+    league: match[1].trim(),
+    date_text: match[3].trim(),
+    time_text: match[4].trim(),
+    home: match[5].trim(),
+    away: match[6].trim(),
+    source: "https://zalgiris.lt/rungtynes"
+  };
 
-  console.log("game.json updated");
+  fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
+  console.log("game.json updated successfully");
 }
 
-getNextGame().catch(e => {
-  console.error(e);
+getNextGame().catch(err => {
+  console.error(err);
   process.exit(1);
 });
