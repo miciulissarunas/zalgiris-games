@@ -10,12 +10,18 @@ async function getNextGame() {
 
   const page = await context.newPage();
   await page.goto("https://zalgiris.lt/rungtynes", {
-    waitUntil: "domcontentloaded",
-    timeout: 30000
+    waitUntil: "networkidle",
+    timeout: 60000
   });
+
+  await page.waitForTimeout(5000);
 
   const html = await page.content();
   await browser.close();
+
+  fs.writeFileSync("debug.txt", html);
+  console.log("HTML length:", html.length);
+  console.log("DEBUG PREVIEW:\n", html.slice(0, 5000));
 
   const text = html.replace(/\s+/g, " ").trim();
 
@@ -23,8 +29,6 @@ async function getNextGame() {
   const match = text.match(regex);
 
   if (!match) {
-    fs.writeFileSync("debug.txt", text);
-    console.log("DEBUG PREVIEW:\n", text.slice(0, 3000));
     throw new Error("Nepavyko ištraukti artimiausių rungtynių iš zalgiris.lt");
   }
 
