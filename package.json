@@ -1,4 +1,7 @@
 {
   "name": "zalgiris-fetch",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
 }
