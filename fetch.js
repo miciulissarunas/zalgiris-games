@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-const fs = require("fs");
+import fs from "fs";
 
 async function getNextGame() {
   const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/euroleague/teams/2674/schedule");
@@ -16,6 +16,10 @@ async function getNextGame() {
     .filter(game => game.date > now)
     .sort((a, b) => a.date - b.date);
 
+  if (!games.length) {
+    throw new Error("No upcoming games found");
+  }
+
   const nextGame = games[0];
 
   const output = {
@@ -25,6 +29,10 @@ async function getNextGame() {
   };
 
   fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
+  console.log("game.json updated successfully");
 }
 
-getNextGame();
+getNextGame().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
