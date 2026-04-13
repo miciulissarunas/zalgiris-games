@@ -20,32 +20,23 @@ async function getNextGame() {
   await browser.close();
 
   fs.writeFileSync("debug.txt", html);
-  console.log("HTML length:", html.length);
-  console.log("DEBUG PREVIEW:\n", html.slice(0, 5000));
 
   const text = html.replace(/\s+/g, " ").trim();
 
-  const regex = /(Lietuvos Krepšinio Lyga|Eurolyga)\s+(AN|PN|SK|TR|KT|ŠT),\s*(\d{2}-\d{2}),\s*(\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*(Informacija|Bilietai)/;
-  const match = text.match(regex);
-
-  if (!match) {
-    throw new Error("Nepavyko ištraukti artimiausių rungtynių iš zalgiris.lt");
+  // Ieškome "Žalgiris" arba "Eurolyga" arba "LKL" konteksto
+  const idx = text.search(/Eurolyga|Krepšinio Lyga|LKL|Žalgiris.*?-.*?\d{2}:\d{2}/);
+  if (idx !== -1) {
+    console.log("FOUND CONTEXT:\n", text.slice(Math.max(0, idx - 200), idx + 1000));
+  } else {
+    console.log("Nerasta Eurolyga/LKL tekste.");
+    // Parodom vidurinę dalį HTML
+    console.log("MIDDLE HTML:\n", text.slice(150000, 155000));
   }
 
-  const output = {
-    league: match[1].trim(),
-    date_text: match[3].trim(),
-    time_text: match[4].trim(),
-    home: match[5].trim(),
-    away: match[6].trim(),
-    source: "https://zalgiris.lt/rungtynes"
-  };
-
-  fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
-  console.log("game.json updated successfully");
+  throw new Error("DEBUG STOP");
 }
 
 getNextGame().catch(err => {
-  console.error(err);
+  console.error(err.message);
   process.exit(1);
 });
