@@ -1,58 +1,46 @@
-import fetch from "node-fetch";
 import fs from "fs";
+import cheerio from "cheerio";
 
 async function getNextGame() {
-  const url = "https://site.api.espn.com/apis/site/v2/sports/basketball/euroleague/teams/2674/schedule";
-  const res = await fetch(url);
+  const res = await fetch("https://zalgiris.lt/rungtynes", {
+    headers: {
+      "user-agent": "Mozilla/5.0"
+    }
+  });
 
   if (!res.ok) {
     throw new Error(`HTTP error ${res.status}`);
   }
 
-  const data = await res.json();
+  const html = await res.text();
+  const $ = cheerio.load(html);
 
-  console.log("Top-level keys:", Object.keys(data));
+  const text = $("body").text().replace(/\s+/g, " ").trim();
 
-  const events = Array.isArray(data.events)
-    ? data.events
-    : Array.isArray(data?.team?.nextEvent)
-    ? data.team.nextEvent
-    : [];
+  // Bandome ištraukti pirmą būsimos rungtynių bloką iš schedule teksto.
+  // Pvz.:
+  // Lietuvos Krepšinio Lyga AN, 04-14, 18:30 Telia Play Jonava - Žalgiris - Informacija
+  const regex =
+    /(Lietuvos Krepšinio Lyga|Eurolyga)\s+([A-ZŠTANPKR]{2},\s*\d{2}-\d{2},\s*\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9.\-'\s]+?)\s*-\s*([A-Za-zÀ-ž0-9.\-'\s]+?)\s*-\s*(Informacija|Bilietai)/;
 
-  if (!events.length) {
-    console.log("Full response:", JSON.stringify(data, null, 2));
-    throw new Error("No events array found in API response");
+  const match = text.match(regex);
+
+  if (!match) {
+    fs.writeFileSync("debug.txt", text);
+    throw new Error("Nepavyko ištraukti rungtynių iš zalgiris.lt puslapio");
   }
 
-  const now = new Date();
-
-  const games = events
-    .map(game => {
-      const comp = game?.competitions?.[0];
-      const competitors = comp?.competitors || [];
-
-      if (competitors.length < 2) return null;
-
-      return {
-        date: new Date(game.date),
-        home: competitors[0]?.team?.displayName || "Unknown",
-        away: competitors[1]?.team?.displayName || "Unknown"
-      };
-    })
-    .filter(Boolean)
-    .filter(game => game.date > now)
-    .sort((a, b) => a.date - b.date);
-
-  if (!games.length) {
-    throw new Error("No upcoming games found");
-  }
-
-  const nextGame = games[0];
+  const league = match[1].trim();
+  const dateText = match[2].trim();
+  const home = match[3].trim();
+  const away = match[4].trim();
 
   const output = {
-    home: nextGame.home,
-    away: nextGame.away,
-    date: nextGame.date.toISOString()
+    league,
+    date_text: dateText,
+    home,
+    away,
+    source: "https://zalgiris.lt/rungtynes"
   };
 
   fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
