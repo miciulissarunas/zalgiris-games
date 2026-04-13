@@ -1,5 +1,5 @@
 import fs from "fs";
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio"; ✅
 
 async function getNextGame() {
   const res = await fetch("https://zalgiris.lt/en/schedule", {
