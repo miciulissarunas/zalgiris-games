@@ -1,8 +1,8 @@
 import fs from "fs";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 
 async function getNextGame() {
-  const res = await fetch("https://zalgiris.lt/rungtynes", {
+  const res = await fetch("https://zalgiris.lt/en/schedule", {
     headers: {
       "user-agent": "Mozilla/5.0"
     }
@@ -17,30 +17,22 @@ async function getNextGame() {
 
   const text = $("body").text().replace(/\s+/g, " ").trim();
 
-  // Bandome ištraukti pirmą būsimos rungtynių bloką iš schedule teksto.
-  // Pvz.:
-  // Lietuvos Krepšinio Lyga AN, 04-14, 18:30 Telia Play Jonava - Žalgiris - Informacija
-  const regex =
-    /(Lietuvos Krepšinio Lyga|Eurolyga)\s+([A-ZŠTANPKR]{2},\s*\d{2}-\d{2},\s*\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9.\-'\s]+?)\s*-\s*([A-Za-zÀ-ž0-9.\-'\s]+?)\s*-\s*(Informacija|Bilietai)/;
+  const regex = /(EuroLeague|Betsafe-LKL|Citadele KMT|King Mindaugas Cup|Lietuvos Krepšinio Lyga).*?(\d{2}-\d{2}).*?(\d{2}:\d{2}).*?([A-Za-zÀ-ž0-9&.\-'\s]+?)\s*-\s*([A-Za-zÀ-ž0-9&.\-'\s]+?)(?:\s|$)/i;
 
   const match = text.match(regex);
 
   if (!match) {
     fs.writeFileSync("debug.txt", text);
-    throw new Error("Nepavyko ištraukti rungtynių iš zalgiris.lt puslapio");
+    throw new Error("Nepavyko ištraukti rungtynių iš zalgiris.lt");
   }
 
-  const league = match[1].trim();
-  const dateText = match[2].trim();
-  const home = match[3].trim();
-  const away = match[4].trim();
-
   const output = {
-    league,
-    date_text: dateText,
-    home,
-    away,
-    source: "https://zalgiris.lt/rungtynes"
+    league: match[1].trim(),
+    date_text: match[2].trim(),
+    time_text: match[3].trim(),
+    home: match[4].trim(),
+    away: match[5].trim(),
+    source: "https://zalgiris.lt/en/schedule"
   };
 
   fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
