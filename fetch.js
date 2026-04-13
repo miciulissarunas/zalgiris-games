@@ -9,6 +9,19 @@ async function getNextGame() {
   });
 
   const page = await context.newPage();
+
+  // Klausome network request'ų — ieškome API calls
+  const apiResponses = [];
+  page.on("response", async (response) => {
+    const url = response.url();
+    if (url.includes("api") || url.includes("game") || url.includes("match") || url.includes("rungtynes") || url.includes("schedule")) {
+      try {
+        const json = await response.json();
+        apiResponses.push({ url, json });
+      } catch {}
+    }
+  });
+
   await page.goto("https://zalgiris.lt/rungtynes", {
     waitUntil: "networkidle",
     timeout: 60000
@@ -16,23 +29,33 @@ async function getNextGame() {
 
   await page.waitForTimeout(5000);
 
-  const html = await page.content();
-  await browser.close();
+  // Bandome ištraukti __NEXT_DATA__
+  const nextData = await page.evaluate(() => {
+    const el = document.getElementById("__NEXT_DATA__");
+    return el ? el.textContent : null;
+  });
 
-  fs.writeFileSync("debug.txt", html);
-
-  const text = html.replace(/\s+/g, " ").trim();
-
-  // Ieškome "Žalgiris" arba "Eurolyga" arba "LKL" konteksto
-  const idx = text.search(/Eurolyga|Krepšinio Lyga|LKL|Žalgiris.*?-.*?\d{2}:\d{2}/);
-  if (idx !== -1) {
-    console.log("FOUND CONTEXT:\n", text.slice(Math.max(0, idx - 200), idx + 1000));
+  if (nextData) {
+    fs.writeFileSync("debug.txt", nextData);
+    console.log("NEXT_DATA found, length:", nextData.length);
+    console.log("NEXT_DATA preview:\n", nextData.slice(0, 3000));
   } else {
-    console.log("Nerasta Eurolyga/LKL tekste.");
-    // Parodom vidurinę dalį HTML
-    console.log("MIDDLE HTML:\n", text.slice(150000, 155000));
+    console.log("No __NEXT_DATA__ found");
   }
 
+  // Loginame API response'us
+  if (apiResponses.length > 0) {
+    console.log("API calls found:");
+    apiResponses.forEach(r => {
+      console.log("URL:", r.url);
+      console.log("JSON preview:", JSON.stringify(r.json).slice(0, 500));
+    });
+    fs.writeFileSync("api_responses.json", JSON.stringify(apiResponses, null, 2));
+  } else {
+    console.log("No API calls captured");
+  }
+
+  await browser.close();
   throw new Error("DEBUG STOP");
 }
 
