@@ -1,58 +1,42 @@
 import fs from "fs";
 
+const ZALGIRIS_ID = 6662; // Sofascore team ID
+
 async function getNextGame() {
-  // Euroleague oficialus API - viešas, nereikia auth
   const res = await fetch(
-    "https://api-live.euroleague.net/v1/games?seasonCode=E2025&teamCode=ZAL&limit=20",
+    `https://api.sofascore.com/api/v1/team/${ZALGIRIS_ID}/events/next/0`,
     {
       headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json",
-        "Origin": "https://www.euroleague.net"
+        "Referer": "https://www.sofascore.com/"
       }
     }
   );
 
-  if (!res.ok) {
-    // Backup: bandome LKL API
-    return await getLKLGame();
-  }
+  if (!res.ok) throw new Error(`Sofascore error: ${res.status}`);
 
   const data = await res.json();
-  const now = new Date();
+  const events = data.events;
 
-  // Randame artimiausias neįvykusias rungtynes
-  const upcoming = data.data
-    ?.filter(g => new Date(g.date) > now)
-    ?.sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (!events?.length) throw new Error("Nerasta rungtynių");
 
-  if (!upcoming?.length) {
-    throw new Error("Nerasta artimiausiom rungtynėm Euroleague");
-  }
+  // Pirmosios artimiausioms rungtynėms
+  const g = events[0];
+  const date = new Date(g.startTimestamp * 1000);
 
-  const g = upcoming[0];
   const output = {
-    league: "Eurolyga",
-    date: g.date,
+    league: g.tournament?.name || "Nežinoma",
+    date: date.toISOString(),
+    date_lt: date.toLocaleDateString("lt-LT", { timeZone: "Europe/Vilnius" }),
+    time_lt: date.toLocaleTimeString("lt-LT", { timeZone: "Europe/Vilnius", hour: "2-digit", minute: "2-digit" }),
     home: g.homeTeam?.name,
     away: g.awayTeam?.name,
-    venue: g.venue,
-    source: "euroleague.net"
+    source: `https://www.sofascore.com/basketball/team/kauno-zalgiris/${ZALGIRIS_ID}`
   };
 
   fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
   console.log("game.json updated:", output);
-}
-
-async function getLKLGame() {
-  // LKL API backup
-  const res = await fetch("https://www.lkl.lt/api/schedule?team=zalgiris&limit=5", {
-    headers: { "Accept": "application/json" }
-  });
-
-  if (!res.ok) throw new Error(`LKL API error: ${res.status}`);
-  const data = await res.json();
-  fs.writeFileSync("debug_lkl.json", JSON.stringify(data, null, 2));
-  console.log("LKL data:", JSON.stringify(data).slice(0, 500));
 }
 
 getNextGame().catch(err => {
