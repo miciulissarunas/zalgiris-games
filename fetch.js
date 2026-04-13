@@ -1,21 +1,25 @@
 import fs from "fs";
+import { chromium } from "playwright";
 
 async function getNextGame() {
-  const res = await fetch("https://zalgiris.lt/rungtynes", {
-    headers: {
-      "user-agent": "Mozilla/5.0"
-    }
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    locale: "lt-LT"
   });
 
-  if (!res.ok) {
-    throw new Error(`HTTP error ${res.status}`);
-  }
+  const page = await context.newPage();
+  await page.goto("https://zalgiris.lt/rungtynes", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000
+  });
 
-  const html = await res.text();
+  const html = await page.content();
+  await browser.close();
+
   const text = html.replace(/\s+/g, " ").trim();
 
   const regex = /(Lietuvos Krepšinio Lyga|Eurolyga)\s+(AN|PN|SK|TR|KT|ŠT),\s*(\d{2}-\d{2}),\s*(\d{2}:\d{2})\s+.*?\s([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*([A-Za-zÀ-ž0-9ŠšŽžŪūĖėĄąČčĘęĮįŲų&.' -]+?)\s*-\s*(Informacija|Bilietai)/;
-
   const match = text.match(regex);
 
   if (!match) {
