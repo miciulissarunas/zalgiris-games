@@ -24,6 +24,7 @@ async function getNextGame() {
 
   if (!match) {
     fs.writeFileSync("debug.txt", text);
+    console.log("DEBUG PREVIEW:\n", text.slice(0, 3000));
     throw new Error("Nepavyko ištraukti artimiausių rungtynių iš zalgiris.lt");
   }
 
