@@ -15,13 +15,14 @@ jobs:
       - run: npm install
       - run: npx playwright install chromium --with-deps
       - run: node fetch.js
+      - name: Show debug
+        if: always()
+        run: |
+          echo "=== debug.txt first 200 lines ==="
+          head -200 debug.txt || echo "no debug.txt found"
       - run: |
           git config user.name "bot"
           git config user.email "bot@github.com"
           git add game.json debug.txt
           git commit -m "update game" || echo "no changes"
           git push
-- run: node fetch.js
-      - name: Show debug
-        if: always()
-        run: cat debug.txt || echo "no debug.txt"
