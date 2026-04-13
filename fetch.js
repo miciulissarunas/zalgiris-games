@@ -77,4 +77,34 @@ async function tryTheSportsDB() {
   try {
     // Ieškom Žalgirio ID per pavadinimą
     const search = await fetch("https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Zalgiris");
-    const s
+    const sData = await search.json();
+    console.log("TheSportsDB teams:", sData.teams?.map(t => `${t.idTeam} ${t.strTeam} ${t.strSport}`));
+
+    const team = sData.teams?.find(t =>
+      t.strTeam.toLowerCase().includes("zalgiris") && t.strSport === "Basketball"
+    );
+    if (!team) return null;
+    console.log("Rastas ID:", team.idTeam, team.strTeam);
+
+    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=${team.idTeam}`);
+    const data = await res.json();
+    if (!data.events?.length) return null;
+
+    const g = data.events[0];
+    return {
+      league: g.strLeague,
+      date: g.dateEvent,
+      time: g.strTime?.slice(0, 5) ?? "TBD",
+      home: g.strHomeTeam,
+      away: g.strAwayTeam,
+    };
+  } catch (e) {
+    console.log("TheSportsDB klaida:", e.message);
+    return null;
+  }
+}
+
+getNextGame().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
