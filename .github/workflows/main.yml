@@ -12,17 +12,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npx playwright install chromium --with-deps
       - run: node fetch.js
-      - name: Show debug
-        if: always()
-        run: |
-          echo "=== debug.txt first 200 lines ==="
-          head -200 debug.txt || echo "no debug.txt found"
       - run: |
           git config user.name "bot"
           git config user.email "bot@github.com"
-          git add game.json debug.txt
+          git add game.json
           git commit -m "update game" || echo "no changes"
           git push
