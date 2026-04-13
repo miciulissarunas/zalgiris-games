@@ -1,0 +1,24 @@
+name: Update Zalgiris Game
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - run: npm install
+
+      - run: node fetch.js
+
+      - run: |
+          git config user.name "bot"
+          git config user.email "bot@github.com"
+          git add game.json
+          git commit -m "update game" || echo "no changes"
+          git push
