@@ -1,24 +1,20 @@
 name: Update Zalgiris Game
-
 on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
-
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
+      - run: npm install
+      - run: npx playwright install chromium --with-deps
       - run: node fetch.js
-
       - run: |
           git config user.name "bot"
           git config user.email "bot@github.com"
