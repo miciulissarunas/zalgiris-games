@@ -1,28 +1,11 @@
 import fs from "fs";
 
 async function getNextGame() {
-  // TheSportsDB - nemokamas, be API rakto
-  const res = await fetch(
-    "https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=134792",
-    { headers: { "Accept": "application/json" } }
-  );
+  const now = new Date();
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  const events = data.events;
-  if (!events?.length) throw new Error("Rungtynių nerasta");
-
-  const g = events[0];
-  const dateStr = g.dateEvent; // YYYY-MM-DD
-  const timeStr = g.strTime?.slice(0, 5) ?? "TBD"; // HH:MM
-
-  const game = {
-    league: g.strLeague,
-    date: dateStr,
-    time: timeStr,
-    home: g.strHomeTeam,
-    away: g.strAwayTeam,
-  };
+  // Bandome du šaltinius
+  const game = await tryEuroleague() || await tryTheSportsDB();
+  if (!game) throw new Error("Nerasta rungtynių iš nė vieno šaltinio");
 
   const html = `<!DOCTYPE html>
 <html lang="lt">
@@ -34,8 +17,8 @@ async function getNextGame() {
     body { font-family: sans-serif; background: #1a1a2e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
     .card { background: #16213e; border-radius: 16px; padding: 32px 48px; text-align: center; box-shadow: 0 4px 32px #0008; max-width: 400px; width: 100%; }
     .league { color: #f0a500; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
-    .teams { font-size: 1.6rem; font-weight: bold; margin: 16px 0; }
-    .vs { color: #f0a500; margin: 0 12px; }
+    .teams { font-size: 1.6rem; font-weight: bold; margin: 16px 0; line-height: 1.4; }
+    .vs { color: #f0a500; display: block; font-size: 1rem; margin: 4px 0; }
     .datetime { color: #aaa; font-size: 1rem; margin-top: 12px; }
     .updated { color: #555; font-size: 0.75rem; margin-top: 20px; }
   </style>
@@ -59,7 +42,39 @@ async function getNextGame() {
   console.log("Išsaugota:", game);
 }
 
-getNextGame().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+async function tryEuroleague() {
+  try {
+    // Euroleague viešas XML feed
+    const res = await fetch("https://feeds.incrowdsports.com/provider/euroleague-feeds/v2/competitions/E/seasons/E2025/clubs/ZAL/games/", {
+      headers: { "Accept": "application/json, text/plain, */*" }
+    });
+    console.log("Euroleague status:", res.status);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const now = new Date();
+    const upcoming = (data.data || [])
+      .filter(g => new Date(g.startDate) > now)
+      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+    if (!upcoming.length) return null;
+    const g = upcoming[0];
+    const d = new Date(g.startDate);
+    return {
+      league: "Eurolyga",
+      date: d.toLocaleDateString("lt-LT", { timeZone: "Europe/Vilnius" }),
+      time: d.toLocaleTimeString("lt-LT", { timeZone: "Europe/Vilnius", hour: "2-digit", minute: "2-digit" }),
+      home: g.homeClub?.name || g.homeTeam?.name,
+      away: g.awayClub?.name || g.awayTeam?.name,
+    };
+  } catch (e) {
+    console.log("Euroleague klaida:", e.message);
+    return null;
+  }
+}
+
+async function tryTheSportsDB() {
+  try {
+    // Ieškom Žalgirio ID per pavadinimą
+    const search = await fetch("https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=Zalgiris");
+    const s
