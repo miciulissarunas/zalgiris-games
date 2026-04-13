@@ -1,50 +1,34 @@
 import fs from "fs";
 
 async function getNextGame() {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 500,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [{
-        role: "user",
-        content: `Surask artimiausias BC Žalgiris Kaunas rungtynes (Eurolyga arba LKL). 
-Grąžink TIK JSON tokiu formatu, nieko daugiau:
-{"league":"...","date":"...","time":"...","home":"...","away":"..."}
-Data formatas: YYYY-MM-DD, laikas: HH:MM (Vilniaus laiku).`
-      }]
-    })
-  });
+  // TheSportsDB - nemokamas, be API rakto
+  const res = await fetch(
+    "https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=134792",
+    { headers: { "Accept": "application/json" } }
+  );
 
-  const data = await response.json();
-  
-  // Surenkame tekstą iš visų content blokų
-  const text = data.content
-    .filter(b => b.type === "text")
-    .map(b => b.text)
-    .join("");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const events = data.events;
+  if (!events?.length) throw new Error("Rungtynių nerasta");
 
-  console.log("Claude response:", text);
+  const g = events[0];
+  const dateStr = g.dateEvent; // YYYY-MM-DD
+  const timeStr = g.strTime?.slice(0, 5) ?? "TBD"; // HH:MM
 
-  // Ištraukiame JSON
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("JSON nerasta atsakyme");
-  
-  const game = JSON.parse(match[0]);
+  const game = {
+    league: g.strLeague,
+    date: dateStr,
+    time: timeStr,
+    home: g.strHomeTeam,
+    away: g.strAwayTeam,
+  };
 
-  // Generuojame HTML
   const html = `<!DOCTYPE html>
 <html lang="lt">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="21600">
   <title>Žalgiris – artimiausia rungtynės</title>
   <style>
     body { font-family: sans-serif; background: #1a1a2e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
