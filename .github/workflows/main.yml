@@ -21,3 +21,7 @@ jobs:
           git add game.json debug.txt
           git commit -m "update game" || echo "no changes"
           git push
+- run: node fetch.js
+      - name: Show debug
+        if: always()
+        run: cat debug.txt || echo "no debug.txt"
