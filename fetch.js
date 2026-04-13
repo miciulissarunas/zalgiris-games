@@ -1,65 +1,61 @@
 import fs from "fs";
-import { chromium } from "playwright";
 
 async function getNextGame() {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    locale: "lt-LT"
-  });
-
-  const page = await context.newPage();
-
-  // Klausome network request'ų — ieškome API calls
-  const apiResponses = [];
-  page.on("response", async (response) => {
-    const url = response.url();
-    if (url.includes("api") || url.includes("game") || url.includes("match") || url.includes("rungtynes") || url.includes("schedule")) {
-      try {
-        const json = await response.json();
-        apiResponses.push({ url, json });
-      } catch {}
+  // Euroleague oficialus API - viešas, nereikia auth
+  const res = await fetch(
+    "https://api-live.euroleague.net/v1/games?seasonCode=E2025&teamCode=ZAL&limit=20",
+    {
+      headers: {
+        "Accept": "application/json",
+        "Origin": "https://www.euroleague.net"
+      }
     }
-  });
+  );
 
-  await page.goto("https://zalgiris.lt/rungtynes", {
-    waitUntil: "networkidle",
-    timeout: 60000
-  });
-
-  await page.waitForTimeout(5000);
-
-  // Bandome ištraukti __NEXT_DATA__
-  const nextData = await page.evaluate(() => {
-    const el = document.getElementById("__NEXT_DATA__");
-    return el ? el.textContent : null;
-  });
-
-  if (nextData) {
-    fs.writeFileSync("debug.txt", nextData);
-    console.log("NEXT_DATA found, length:", nextData.length);
-    console.log("NEXT_DATA preview:\n", nextData.slice(0, 3000));
-  } else {
-    console.log("No __NEXT_DATA__ found");
+  if (!res.ok) {
+    // Backup: bandome LKL API
+    return await getLKLGame();
   }
 
-  // Loginame API response'us
-  if (apiResponses.length > 0) {
-    console.log("API calls found:");
-    apiResponses.forEach(r => {
-      console.log("URL:", r.url);
-      console.log("JSON preview:", JSON.stringify(r.json).slice(0, 500));
-    });
-    fs.writeFileSync("api_responses.json", JSON.stringify(apiResponses, null, 2));
-  } else {
-    console.log("No API calls captured");
+  const data = await res.json();
+  const now = new Date();
+
+  // Randame artimiausias neįvykusias rungtynes
+  const upcoming = data.data
+    ?.filter(g => new Date(g.date) > now)
+    ?.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (!upcoming?.length) {
+    throw new Error("Nerasta artimiausiom rungtynėm Euroleague");
   }
 
-  await browser.close();
-  throw new Error("DEBUG STOP");
+  const g = upcoming[0];
+  const output = {
+    league: "Eurolyga",
+    date: g.date,
+    home: g.homeTeam?.name,
+    away: g.awayTeam?.name,
+    venue: g.venue,
+    source: "euroleague.net"
+  };
+
+  fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
+  console.log("game.json updated:", output);
+}
+
+async function getLKLGame() {
+  // LKL API backup
+  const res = await fetch("https://www.lkl.lt/api/schedule?team=zalgiris&limit=5", {
+    headers: { "Accept": "application/json" }
+  });
+
+  if (!res.ok) throw new Error(`LKL API error: ${res.status}`);
+  const data = await res.json();
+  fs.writeFileSync("debug_lkl.json", JSON.stringify(data, null, 2));
+  console.log("LKL data:", JSON.stringify(data).slice(0, 500));
 }
 
 getNextGame().catch(err => {
-  console.error(err.message);
+  console.error(err);
   process.exit(1);
 });
