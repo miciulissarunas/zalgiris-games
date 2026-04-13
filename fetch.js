@@ -1,75 +1,78 @@
 import fs from "fs";
 
 async function getNextGame() {
-  const now = new Date();
-  const season = "2025"; // 2025-2026 sezonas
-  let nextGame = null;
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 500,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{
+        role: "user",
+        content: `Surask artimiausias BC Žalgiris Kaunas rungtynes (Eurolyga arba LKL). 
+Grąžink TIK JSON tokiu formatu, nieko daugiau:
+{"league":"...","date":"...","time":"...","home":"...","away":"..."}
+Data formatas: YYYY-MM-DD, laikas: HH:MM (Vilniaus laiku).`
+      }]
+    })
+  });
 
-  // Euroleague live.euroleague.net API - žinomas viešas endpoint
-  // Einame per raundus ir ieškome artimiausioms rungtynėms su ZAL
-  for (let round = 1; round <= 34; round++) {
-    const url = `https://live.euroleague.net/api/Schedule?seasonCode=E${season}&gameNumber=${round}`;
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "Accept": "application/json, text/plain, */*",
-          "Origin": "https://www.euroleague.net",
-          "Referer": "https://www.euroleague.net/"
-        }
-      });
+  const data = await response.json();
+  
+  // Surenkame tekstą iš visų content blokų
+  const text = data.content
+    .filter(b => b.type === "text")
+    .map(b => b.text)
+    .join("");
 
-      if (!res.ok) continue;
+  console.log("Claude response:", text);
 
-      const data = await res.json();
-      const games = data?.items || data?.games || data?.Scoreboard || [];
+  // Ištraukiame JSON
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("JSON nerasta atsakyme");
+  
+  const game = JSON.parse(match[0]);
 
-      for (const g of games) {
-        const isZAL = g.hometeam === "ZAL" || g.awayteam === "ZAL" ||
-                      g.HomeTeamCode === "ZAL" || g.AwayTeamCode === "ZAL";
-        if (!isZAL) continue;
+  // Generuojame HTML
+  const html = `<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="21600">
+  <title>Žalgiris – artimiausia rungtynės</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a2e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .card { background: #16213e; border-radius: 16px; padding: 32px 48px; text-align: center; box-shadow: 0 4px 32px #0008; max-width: 400px; width: 100%; }
+    .league { color: #f0a500; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .teams { font-size: 1.6rem; font-weight: bold; margin: 16px 0; }
+    .vs { color: #f0a500; margin: 0 12px; }
+    .datetime { color: #aaa; font-size: 1rem; margin-top: 12px; }
+    .updated { color: #555; font-size: 0.75rem; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="league">${game.league}</div>
+    <div class="teams">
+      <span>${game.home}</span>
+      <span class="vs">vs</span>
+      <span>${game.away}</span>
+    </div>
+    <div class="datetime">📅 ${game.date} &nbsp; 🕐 ${game.time}</div>
+    <div class="updated">Atnaujinta: ${new Date().toLocaleString("lt-LT", { timeZone: "Europe/Vilnius" })}</div>
+  </div>
+</body>
+</html>`;
 
-        const gameDate = new Date(g.date || g.Date || g.GameDate);
-        if (gameDate > now) {
-          if (!nextGame || gameDate < new Date(nextGame.date || nextGame.Date)) {
-            nextGame = g;
-          }
-        }
-      }
-
-      if (nextGame) break;
-
-    } catch (e) {
-      // tęsiame
-    }
-  }
-
-  if (!nextGame) {
-    // Debug: parodome ką grąžina pirmas raundas
-    const url = `https://live.euroleague.net/api/Schedule?seasonCode=E${season}&gameNumber=1`;
-    const res = await fetch(url, { headers: { "Accept": "application/json" } });
-    console.log("Round 1 status:", res.status);
-    if (res.ok) {
-      const data = await res.json();
-      fs.writeFileSync("debug.json", JSON.stringify(data, null, 2));
-      console.log("Round 1 keys:", Object.keys(data));
-      console.log("Preview:", JSON.stringify(data).slice(0, 1000));
-    }
-    throw new Error("Nerasta ZAL rungtynių");
-  }
-
-  const gameDate = new Date(nextGame.date || nextGame.Date || nextGame.GameDate);
-  const output = {
-    league: "Eurolyga",
-    date: gameDate.toISOString(),
-    date_lt: gameDate.toLocaleDateString("lt-LT", { timeZone: "Europe/Vilnius" }),
-    time_lt: gameDate.toLocaleTimeString("lt-LT", { timeZone: "Europe/Vilnius", hour: "2-digit", minute: "2-digit" }),
-    home: nextGame.hometeam || nextGame.HomeTeamName || nextGame.HomeTeamCode,
-    away: nextGame.awayteam || nextGame.AwayTeamName || nextGame.AwayTeamCode,
-    source: "live.euroleague.net"
-  };
-
-  fs.writeFileSync("game.json", JSON.stringify(output, null, 2));
-  console.log("game.json updated:", output);
+  fs.writeFileSync("game.html", html);
+  fs.writeFileSync("game.json", JSON.stringify(game, null, 2));
+  console.log("Išsaugota:", game);
 }
 
 getNextGame().catch(err => {
