@@ -1,3 +1,4 @@
+import fetch from "node-fetch";
 const fs = require("fs");
 
 async function getNextGame() {
